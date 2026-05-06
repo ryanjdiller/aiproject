@@ -38,3 +38,12 @@ python -m pip install --upgrade pip
 python -m pip install streamlit 
 
 python -m pip show streamlit
+
+## Run the Streamlit app
+
+1. Activate the virtual environment.
+2. Run:
+
+    streamlit run streamlit_app.py
+
+3. Open the URL shown in the terminal to view the enrollment UI.
