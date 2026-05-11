@@ -1,4 +1,9 @@
 import streamlit as st
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
 
 from enrollment_starter import (
     CURRENT_STUDENT,
@@ -12,6 +17,97 @@ from enrollment_starter import (
     soft_unenroll_student,
     export_database_snapshot,
 )
+
+
+def generate_pdf_report(student, enrollments, history, available_keys):
+    """Generate a PDF report of the student's enrollment data."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Title
+    story.append(Paragraph("Student Enrollment Report", styles['Title']))
+    story.append(Spacer(1, 12))
+
+    # Student Info
+    story.append(Paragraph(f"Student: {student['name']}", styles['Heading2']))
+    story.append(Paragraph(f"Email: {student['email']}", styles['Normal']))
+    story.append(Paragraph(f"User ID: {student['user_id']}", styles['Normal']))
+    story.append(Spacer(1, 12))
+
+    # Summary
+    enrolled_count = len([e for e in history if e['status'] != STATUS_UNENROLLED])
+    unenrolled_count = len([e for e in history if e['status'] == STATUS_UNENROLLED])
+    story.append(Paragraph("Summary", styles['Heading2']))
+    story.append(Paragraph(f"Courses Enrolled: {enrolled_count}", styles['Normal']))
+    story.append(Paragraph(f"Courses Unenrolled: {unenrolled_count}", styles['Normal']))
+    story.append(Paragraph(f"Total Records: {len(history)}", styles['Normal']))
+    story.append(Spacer(1, 12))
+
+    # Current Enrollments
+    if enrollments:
+        story.append(Paragraph("Current Enrollments", styles['Heading2']))
+        data = [['Course ID', 'Course Name', 'Instructor', 'Enrolled At']]
+        for e in enrollments:
+            data.append([e['course_id'], e['course_name'], e['instructor'], e['enrolled_at']])
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 12))
+
+    # Enrollment History
+    if history:
+        story.append(Paragraph("Enrollment History", styles['Heading2']))
+        data = [['Course ID', 'Course Name', 'Status', 'Enrolled At']]
+        for h in history:
+            data.append([h['course_id'], h['course_name'], h['status'], h['enrolled_at']])
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 12))
+
+    # Available Course Keys
+    if available_keys:
+        story.append(Paragraph("Available Course Keys", styles['Heading2']))
+        data = [['Course ID', 'Course Name', 'Instructor', 'Enrollment Key']]
+        for k in available_keys:
+            data.append([k['course_id'], k['course_name'], k['instructor'], k['enrollment_key']])
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(table)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
 
 st.set_page_config(page_title="Enrollment Manager", page_icon="🎓", layout="wide")
 
@@ -106,3 +202,14 @@ if st.button("Export Snapshot"):
     export_database_snapshot()
     st.success("Database snapshot exported.")
     st.write("Saved to `student_enrollment_snapshot.json`.")
+
+st.header("Export PDF Report")
+if st.button("Generate and Download PDF Report"):
+    pdf_buffer = generate_pdf_report(student, current_enrollments, history, available)
+    st.download_button(
+        label="Download PDF Report",
+        data=pdf_buffer,
+        file_name="enrollment_report.pdf",
+        mime="application/pdf",
+        key="download_pdf"
+    )
